@@ -1,0 +1,36 @@
+from pycocotools.coco import COCO
+import matplotlib.pyplot as plt
+import skimage.io as io
+import numpy as np
+
+# 初始化COCO API，指定标注文件路径
+dataDir = '.'
+dataType = 'val2017'
+annFile = '{}/annotations/instances_{}.json'.format(dataDir, dataType)
+coco = COCO(annFile)
+
+# 显示所有类别
+cats = coco.loadCats(coco.getCatIds())
+nms = [cat['name'] for cat in cats]
+print('COCO categories: \n{}\n'.format(' '.join(nms)))
+
+# 显示所有超类别
+nms = set([cat['supercategory'] for cat in cats])
+print('COCO supercategories: \n{}'.format(' '.join(nms)))
+
+# 获取特定类别的图像ID
+catIds = coco.getCatIds(catNms=['person', 'dog', 'skateboard'])
+imgIds = coco.getImgIds(catIds=catIds)
+img = coco.loadImgs(imgIds[np.random.randint(0, len(imgIds))])[0]
+
+# 加载并显示图像
+I = io.imread('{}/images/{}/{}'.format(dataDir, dataType, img['file_name']))
+plt.axis('off')
+plt.imshow(I)
+plt.show()
+
+# 加载并显示标注
+annIds = coco.getAnnIds(imgIds=img['id'], catIds=catIds, iscrowd=None)
+anns = coco.loadAnns(annIds)
+coco.showAnns(anns)
+plt.show()
