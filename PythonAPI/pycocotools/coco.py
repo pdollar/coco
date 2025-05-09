@@ -46,9 +46,6 @@ __version__ = '2.0'
 
 import json
 import time
-import matplotlib.pyplot as plt
-from matplotlib.collections import PatchCollection
-from matplotlib.patches import Polygon
 import numpy as np
 import copy
 import itertools
@@ -81,7 +78,8 @@ class COCO:
         if not annotation_file == None:
             print('loading annotations into memory...')
             tic = time.time()
-            dataset = json.load(open(annotation_file, 'r'))
+            with open(annotation_file, 'r') as f:
+                dataset = json.load(f)
             assert type(dataset)==dict, 'annotation file format {} not supported'.format(type(dataset))
             print('Done (t={:0.2f}s)'.format(time.time()- tic))
             self.dataset = dataset
@@ -245,6 +243,10 @@ class COCO:
         else:
             raise Exception('datasetType not supported')
         if datasetType == 'instances':
+            import matplotlib.pyplot as plt
+            from matplotlib.collections import PatchCollection
+            from matplotlib.patches import Polygon
+
             ax = plt.gca()
             ax.set_autoscale_on(False)
             polygons = []
@@ -314,7 +316,8 @@ class COCO:
         print('Loading and preparing results...')
         tic = time.time()
         if type(resFile) == str or (PYTHON_VERSION == 2 and type(resFile) == unicode):
-            anns = json.load(open(resFile))
+            with open(resFile) as f:
+                anns = json.load(f)
         elif type(resFile) == np.ndarray:
             anns = self.loadNumpyAnnotations(resFile)
         else:
@@ -410,32 +413,42 @@ class COCO:
                 }]
         return ann
 
-    def annToRLE(self, ann):
+    def annToRLE(self, ann, mask=None):
         """
-        Convert annotation which can be polygons, uncompressed RLE to RLE.
+        Convert annotation which can be polygons, uncompressed RLE, or bbox to RLE.
         :return: binary mask (numpy 2D array)
         """
         t = self.imgs[ann['image_id']]
         h, w = t['height'], t['width']
-        segm = ann['segmentation']
-        if type(segm) == list:
-            # polygon -- a single object might consist of multiple parts
-            # we merge all parts into one mask rle code
-            rles = maskUtils.frPyObjects(segm, h, w)
-            rle = maskUtils.merge(rles)
-        elif type(segm['counts']) == list:
-            # uncompressed RLE
-            rle = maskUtils.frPyObjects(segm, h, w)
+        if mask == 'bbox':
+            # bbox -- convert bbox to RLE
+            [x, y, width, height] = ann['bbox']
+            rle = maskUtils.frPyObjects(
+                [[x, y, x + width, y, x + width, y + height, x, y + height]], h, w
+            )
         else:
-            # rle
-            rle = ann['segmentation']
+            segm = ann['segmentation']
+            if type(segm) == list:
+                # polygon -- a single object might consist of multiple parts
+                # we merge all parts into one mask rle code
+                rles = maskUtils.frPyObjects(segm, h, w)
+                rle = maskUtils.merge(rles)
+            elif type(segm['counts']) == list:
+                # uncompressed RLE
+                rle = maskUtils.frPyObjects(segm, h, w)
+            else:
+                # rle
+                rle = ann['segmentation']
         return rle
 
-    def annToMask(self, ann):
+    def annToMask(self, ann, mask=None):
         """
         Convert annotation which can be polygons, uncompressed RLE, or RLE to binary mask.
         :return: binary mask (numpy 2D array)
         """
-        rle = self.annToRLE(ann)
+        if mask == 'bbox':
+            rle =self.annToRLE(ann, mask='bbox')
+        else:
+            rle = self.annToRLE(ann)
         m = maskUtils.decode(rle)
         return m
